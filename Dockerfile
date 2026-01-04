@@ -1,12 +1,16 @@
 FROM php:8.4-cli-alpine
 
-# Install required system dependencies
+# Install system dependencies required for intl
 RUN apk add --no-cache \
+    icu-dev \
     libc6-compat \
     udev \
     tzdata
 
-# Set timezone (optional but recommended)
+# Build and enable PHP intl extension
+RUN docker-php-ext-install intl
+
+# Set timezone
 ENV TZ=Europe/Lisbon
 
 # Install Composer
@@ -15,7 +19,7 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # Set workdir
 WORKDIR /app
 
-# Copy composer files first for layer caching
+# Copy composer files first (better cache)
 COPY composer.json composer.lock ./
 
 # Install PHP dependencies (production only)
@@ -28,11 +32,8 @@ RUN composer install \
 # Copy application source
 COPY . .
 
-# Ensure correct permissions
-RUN chmod +x /app
-
-# Healthcheck (basic)
+# Healthcheck
 HEALTHCHECK CMD php -v || exit 1
 
-# Default command (can be overridden)
+# Run PHP built-in server
 CMD ["php", "-S", "0.0.0.0:8080", "-t", "/app"]
