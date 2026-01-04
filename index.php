@@ -1,68 +1,113 @@
 <?php
 
+declare(strict_types=1);
+
 require __DIR__ . '/vendor/autoload.php';
 
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 use Mike42\Escpos\Printer;
 
+const PRINTER_DEVICE = '/dev/usb/lp0';
+const BODY_LINE_WIDTH = 42;
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    return 'Error: Expecting a POST request';
+    http_response_code(405);
+    echo 'Error: Expecting a POST request';
+    exit;
 }
 
-// initialize the printer connection, printing directly to the raw usb connection
-$connector = new FilePrintConnector("/dev/usb/lp0");
-$printer = new Printer($connector);
+$rawInput = file_get_contents('php://input');
+$data = json_decode($rawInput, true);
 
-// grab the full input coming in as JSON via a POST request
-$data = json_decode(file_get_contents('php://input'), true);
+if (!is_array($data)) {
+    http_response_code(400);
+    echo 'Error: Invalid JSON payload';
+    exit;
+}
 
-// print out different sections of the receipt
-// breaking this up into functions for clarity and readability
-printHeader($printer, $data['issue']['user']['login'], $data['repository']['name']);
-printTitle($printer, $data['issue']['title']);
-printBody($printer, $data['issue']['body']);
-printFooter($printer, $data['issue']['created_at']);
+$issue = $data['issue'] ?? [];
+$repo = $data['repository'] ?? [];
 
-// all good!
-return 0;
+$title = $issue['title'] ?? '(no title)';
+$body = $issue['body'] ?? '';
+$createdAt = $issue['created_at'] ?? '';
+$user = $issue['user']['login'] ?? 'unknown';
+$repoName = $repo['full_name'] ?? 'unknown';
 
-// functions for printing individual parts of the receipt
-function printHeader($printer, $user, $repo)
+$connector = null;
+$printer = null;
+
+try {
+    $connector = new FilePrintConnector(PRINTER_DEVICE);
+    $printer = new Printer($connector);
+
+    printHeader($printer, $user, $repoName);
+    printTitle($printer, $title);
+    printBody($printer, $body);
+    printFooter($printer, $createdAt);
+
+    http_response_code(200);
+    echo 'Printed successfully';
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo 'Printing failed: ' . $e->getMessage();
+} finally {
+    if ($printer instanceof Printer) {
+        $printer->close();
+    }
+}
+
+/**
+ * Prints the receipt header.
+ */
+function printHeader(Printer $printer, string $user, string $repo): void
 {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->setTextSize(2, 2);
-    $printer->setUnderline(true);
-    $printer->setEmphasis(true);
+    $printer->setUnderline();
+    $printer->setEmphasis();
     $printer->text("New Issue\n");
     $printer->feed(2);
 
-    $printer->setJustification(Printer::JUSTIFY_LEFT);
+    $printer->setJustification();
     $printer->setTextSize(1, 1);
-    $printer->setUnderline(false);
+    $printer->setUnderline();
     $printer->setEmphasis(false);
-    $printer->text("Repo: aschmelyun/" . $repo . "\n");
-    $printer->text("User: @" . $user);
-
+    $printer->text("Repo: $repo\n");
+    $printer->text("User: @$user\n");
     $printer->feed(2);
 }
 
-function printTitle($printer, $title)
+/**
+ * Prints the issue title.
+ */
+function printTitle(Printer $printer, string $title): void
 {
-    $printer->setEmphasis(true);
-    $printer->text($title);
+    $printer->setEmphasis();
+    $printer->text($title . "\n");
     $printer->setEmphasis(false);
     $printer->feed(2);
 }
 
-function printBody($printer, $body)
+/**
+ * Prints the issue body.
+ */
+function printBody(Printer $printer, string $body): void
 {
-    $printer->text(wordwrap($body, 42));
-    $printer->feed(2);
+    if ($body !== '') {
+        $printer->text(wordwrap($body, BODY_LINE_WIDTH) . "\n");
+        $printer->feed(2);
+    }
 }
 
-function printFooter($printer, $timestamp)
+/**
+ * Prints the footer and cuts the paper.
+ */
+function printFooter(Printer $printer, string $timestamp): void
 {
-    $printer->text($timestamp);
-    $printer->feed(2);
+    if ($timestamp !== '') {
+        $printer->text($timestamp . "\n");
+        $printer->feed(2);
+    }
     $printer->cut();
 }
