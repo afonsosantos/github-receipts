@@ -8,14 +8,16 @@ use Mike42\Escpos\Printer;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 const PRINTER_DEVICE = '/dev/usb/lp0';
-const MAX_CHARS_NORMAL = 48;   // normal font, full width
-const MAX_CHARS_DOUBLE = 24;   // double-width text
+const MAX_CHARS_PER_LINE = 48;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo 'Error: Expecting a POST request';
     exit;
 }
+
+// GitHub sends event type in the header: X-GitHub-Event
+$githubEvent = $_SERVER['HTTP_X_GITHUB_EVENT'] ?? '';
 
 $rawInput = file_get_contents('php://input');
 $data = json_decode($rawInput, true);
@@ -26,14 +28,8 @@ if (!is_array($data)) {
     exit;
 }
 
-$issue = $data['issue'] ?? [];
-$repo = $data['repository'] ?? [];
-
-$title = $issue['title'] ?? '(no title)';
-$body = $issue['body'] ?? '';
-$createdAt = $issue['created_at'] ?? '';
-$user = $issue['user']['login'] ?? 'unknown';
-$repoName = $repo['full_name'] ?? 'unknown';
+$connector = null;
+$printer = null;
 
 try {
     $connector = new FilePrintConnector(PRINTER_DEVICE);
@@ -41,10 +37,29 @@ try {
 
     $printer->initialize();
 
-    printHeader($printer, $user, $repoName);
-    printTitle($printer, $title);
-    printBody($printer, $body);
-    printFooter($printer, $createdAt);
+    switch ($githubEvent) {
+        case 'issues':
+            printIssue($printer, $data);
+            break;
+
+        case 'pull_request':
+            printPullRequest($printer, $data);
+            break;
+
+        case 'workflow_run':
+            // Only print failed runs
+            if (($data['workflow_run']['conclusion'] ?? '') === 'failure') {
+                printWorkflowRunFailure($printer, $data);
+            }
+            break;
+
+        default:
+            // Unknown event
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->text("Unknown GitHub Event: $githubEvent\n");
+            $printer->feed(2);
+            break;
+    }
 
     http_response_code(200);
     echo 'Printed successfully';
@@ -58,57 +73,120 @@ try {
 }
 
 /**
- * Prints the header with double-width "New Issue" and normal text for repo/user
+ * Print an issue event
  */
-function printHeader(Printer $printer, string $user, string $repo): void
+function printIssue(Printer $printer, array $data): void
 {
-    // Big centered header
-    $printer->setJustification(Printer::JUSTIFY_CENTER);
-    $printer->setTextSize(2, 2); // double width/height
+    $issue = $data['issue'] ?? [];
+    $repo = $data['repository'] ?? [];
+
+    $title = $issue['title'] ?? '(no title)';
+    $body = $issue['body'] ?? '';
+    $createdAt = $issue['created_at'] ?? '';
+    $user = $issue['user']['login'] ?? 'unknown';
+    $repoName = $repo['full_name'] ?? 'unknown';
+
+    printHeader($printer, "New Issue", $user, $repoName);
+    printTitle($printer, $title);
+    printBody($printer, $body);
+    printFooter($printer, $createdAt);
+}
+
+/**
+ * Print a pull request event
+ */
+function printPullRequest(Printer $printer, array $data): void
+{
+    $pr = $data['pull_request'] ?? [];
+    $repo = $data['repository'] ?? [];
+
+    $title = $pr['title'] ?? '(no title)';
+    $body = $pr['body'] ?? '';
+    $createdAt = $pr['created_at'] ?? '';
+    $user = $pr['user']['login'] ?? 'unknown';
+    $repoName = $repo['full_name'] ?? 'unknown';
+    $action = $data['action'] ?? 'opened';
+
+    printHeader($printer, "Pull Request [$action]", $user, $repoName);
+    printTitle($printer, $title);
+    printBody($printer, $body);
+    printFooter($printer, $createdAt);
+}
+
+/**
+ * Print a failed workflow run
+ */
+function printWorkflowRunFailure(Printer $printer, array $data): void
+{
+    $workflow = $data['workflow_run'] ?? [];
+    $repo = $data['repository'] ?? [];
+
+    $name = $workflow['name'] ?? '(unknown workflow)';
+    $runId = $workflow['id'] ?? '';
+    $conclusion = $workflow['conclusion'] ?? 'failure';
+    $timestamp = $workflow['updated_at'] ?? '';
+    $repoName = $repo['full_name'] ?? 'unknown';
+
+    printHeader($printer, "Workflow Failed", "Repo: $repoName", '');
     $printer->setEmphasis(true);
-    $printer->text(wordwrap("New Issue", MAX_CHARS_DOUBLE) . "\n");
+    $printer->text("Workflow: $name\n");
+    $printer->text("Run ID: $runId\n");
+    $printer->text("Conclusion: $conclusion\n");
+    $printer->setEmphasis(false);
+    $printer->feed(2);
+    printFooter($printer, $timestamp);
+}
+
+/**
+ * Prints the receipt header.
+ */
+function printHeader(Printer $printer, string $title, string $user, string $repo): void
+{
+    $printer->setJustification(Printer::JUSTIFY_CENTER);
+    $printer->setTextSize(2, 2);
+    $printer->setEmphasis(true);
+    $printer->text(wordwrap($title, MAX_CHARS_PER_LINE) . "\n");
     $printer->feed(2);
 
-    // Repo / User normal text
     $printer->setJustification(Printer::JUSTIFY_LEFT);
     $printer->setTextSize(1, 1);
     $printer->setEmphasis(false);
-    $printer->text(wordwrap("Repo: $repo", MAX_CHARS_NORMAL) . "\n");
-    $printer->text(wordwrap("User: @$user", MAX_CHARS_NORMAL) . "\n");
+    if ($repo !== '') $printer->text(wordwrap("Repo: $repo", MAX_CHARS_PER_LINE) . "\n");
+    if ($user !== '') $printer->text(wordwrap("User: $user", MAX_CHARS_PER_LINE) . "\n");
     $printer->feed(2);
 }
 
 /**
- * Prints the issue title in double width
+ * Prints the issue / PR title.
  */
 function printTitle(Printer $printer, string $title): void
 {
-    $printer->setEmphasis(true);
-    $printer->setTextSize(2, 2); // double width/height
-    $printer->text(wordwrap($title, MAX_CHARS_DOUBLE) . "\n");
-    $printer->setTextSize(1, 1); // back to normal
-    $printer->setEmphasis(false);
-    $printer->feed(2);
-}
-
-/**
- * Prints the body in normal font
- */
-function printBody(Printer $printer, string $body): void
-{
-    if ($body !== '') {
-        $printer->text(wordwrap($body, MAX_CHARS_NORMAL) . "\n");
+    if ($title !== '') {
+        $printer->setEmphasis(true);
+        $printer->text(wordwrap($title, MAX_CHARS_PER_LINE) . "\n");
+        $printer->setEmphasis(false);
         $printer->feed(2);
     }
 }
 
 /**
- * Prints footer and cuts
+ * Prints the body.
+ */
+function printBody(Printer $printer, string $body): void
+{
+    if ($body !== '') {
+        $printer->text(wordwrap($body, MAX_CHARS_PER_LINE) . "\n");
+        $printer->feed(2);
+    }
+}
+
+/**
+ * Prints the footer and cuts the paper.
  */
 function printFooter(Printer $printer, string $timestamp): void
 {
     if ($timestamp !== '') {
-        $printer->text(wordwrap($timestamp, MAX_CHARS_NORMAL) . "\n");
+        $printer->text($timestamp . "\n");
         $printer->feed(2);
     }
     $printer->cut(Printer::CUT_PARTIAL);
