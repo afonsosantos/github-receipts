@@ -108,6 +108,13 @@ function printPullRequest(Printer $printer, array $data): void
     $action = $data['action'] ?? 'opened';
 
     printHeader($printer, "Pull Request [$action]", $user, $repoName);
+
+    // Single line: Repo / User
+    printLineColumns($printer, [
+        "Repo: $repoName",
+        "User: @$user"
+    ]);
+
     printTitle($printer, $title);
     printBody($printer, $body);
     printFooter($printer, $createdAt);
@@ -127,12 +134,15 @@ function printWorkflowRunFailure(Printer $printer, array $data): void
     $timestamp = $workflow['updated_at'] ?? '';
     $repoName = $repo['full_name'] ?? 'unknown';
 
-    printHeader($printer, "Workflow Failed", "Repo: $repoName", '');
-    $printer->setEmphasis(true);
-    $printer->text("Workflow: $name\n");
-    $printer->text("Run ID: $runId\n");
-    $printer->text("Conclusion: $conclusion\n");
-    $printer->setEmphasis(false);
+    printHeader($printer, "Workflow Failed", "", $repoName);
+
+    // Single line columns: Workflow / Run ID / Status
+    printLineColumns($printer, [
+        "Workflow: $name",
+        "Run ID: $runId",
+        "Status: $conclusion"
+    ]);
+
     $printer->feed(2);
     printFooter($printer, $timestamp);
 }
@@ -148,16 +158,18 @@ function printHeader(Printer $printer, string $title, string $user, string $repo
     $printer->text(wordwrap($title, MAX_CHARS_PER_LINE) . "\n");
     $printer->feed(2);
 
-    $printer->setJustification(Printer::JUSTIFY_LEFT);
-    $printer->setTextSize(1, 1);
-    $printer->setEmphasis(false);
-    if ($repo !== '') $printer->text(wordwrap("Repo: $repo", MAX_CHARS_PER_LINE) . "\n");
-    if ($user !== '') $printer->text(wordwrap("User: $user", MAX_CHARS_PER_LINE) . "\n");
-    $printer->feed(2);
+    if ($repo !== '' || $user !== '') {
+        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $printer->setTextSize(1, 1);
+        $printer->setEmphasis(false);
+        if ($repo !== '') $printer->text(wordwrap("Repo: $repo", MAX_CHARS_PER_LINE) . "\n");
+        if ($user !== '') $printer->text(wordwrap("User: $user", MAX_CHARS_PER_LINE) . "\n");
+        $printer->feed(2);
+    }
 }
 
 /**
- * Prints the issue / PR title.
+ * Prints the title.
  */
 function printTitle(Printer $printer, string $title): void
 {
@@ -186,8 +198,29 @@ function printBody(Printer $printer, string $body): void
 function printFooter(Printer $printer, string $timestamp): void
 {
     if ($timestamp !== '') {
-        $printer->text($timestamp . "\n");
+        $printer->text(wordwrap($timestamp, MAX_CHARS_PER_LINE) . "\n");
         $printer->feed(2);
     }
     $printer->cut(Printer::CUT_PARTIAL);
+}
+
+/**
+ * Helper: prints multiple columns on a single line
+ * Columns are right-padded to fit MAX_CHARS_PER_LINE
+ */
+function printLineColumns(Printer $printer, array $columns): void
+{
+    $numCols = count($columns);
+    $widthPerCol = intval(MAX_CHARS_PER_LINE / $numCols);
+
+    $line = '';
+    foreach ($columns as $col) {
+        $col = trim($col);
+        if (strlen($col) > $widthPerCol) {
+            $col = substr($col, 0, $widthPerCol - 1) . "…";
+        }
+        $line .= str_pad($col, $widthPerCol);
+    }
+    $printer->text($line . "\n");
+    $printer->feed(1);
 }
