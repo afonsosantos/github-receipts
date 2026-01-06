@@ -65,7 +65,9 @@ try {
     }
 }
 
-/** Print issue */
+/** Print issue
+ * @throws Exception
+ */
 function printIssue(Printer $printer, array $data): void
 {
     $issue = $data['issue'] ?? [];
@@ -76,13 +78,22 @@ function printIssue(Printer $printer, array $data): void
     $createdAt = $issue['created_at'] ?? '';
     $user = $issue['user']['login'] ?? 'unknown';
     $repoName = $repo['full_name'] ?? 'unknown';
-    $labels = $issue['labels'] ?? [];
+    $issueUrl = $issue['html_url'] ?? '';
 
+    // Header, title, body
     printHeader($printer, "New Issue", $user, $repoName);
-    printLabels($printer, $labels);
     printTitle($printer, $title);
     printBody($printer, $body);
+
+    // Footer timestamp
     printFooter($printer, $createdAt);
+
+    // Print QR code for the issue link
+    if ($issueUrl !== '') {
+        $printer->feed(1);
+        $printer->qrCode($issueUrl, Printer::QR_ECLEVEL_L, 4);
+        $printer->feed(2);
+    }
 }
 
 /** Print pull request */
