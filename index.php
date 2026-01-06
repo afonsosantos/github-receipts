@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
+use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
@@ -65,6 +66,22 @@ try {
     }
 }
 
+function printLogo(Printer $printer, string $logoPath = './logo.png'): void
+{
+    if (!file_exists($logoPath)) {
+        return;
+    }
+
+    try {
+        $logo = EscposImage::load($logoPath, false);
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->bitImage($logo);
+        $printer->feed(1);
+    } catch (Exception $e) {
+        // ignore image errors
+    }
+}
+
 /** Print issue
  * @throws Exception
  */
@@ -81,13 +98,9 @@ function printIssue(Printer $printer, array $data): void
     $issueUrl = $issue['html_url'] ?? '';
     $labels = $issue['labels'] ?? [];
 
-    // Header
+    printLogo($printer);
     printHeader($printer, "New Issue", $user, $repoName);
-
-    // Labels as pills
     printLabels($printer, $labels);
-
-    // Title and body
     printTitle($printer, $title);
     printBody($printer, $body);
 
@@ -116,6 +129,7 @@ function printPullRequest(Printer $printer, array $data): void
     $action = $data['action'] ?? 'opened';
     $labels = $pr['labels'] ?? [];
 
+    printLogo($printer);
     printHeader($printer, "Pull Request [$action]", $user, $repoName);
     printLabels($printer, $labels);
     printTitle($printer, $title);
@@ -154,6 +168,7 @@ function printWorkflowRunFailure(Printer $printer, array $data): void
     $timestamp = $workflow['updated_at'] ?? '';
     $repoName = $repo['full_name'] ?? 'unknown';
 
+    printLogo($printer);
     printHeader($printer, "Workflow Failed", '', $repoName);
 
     $printer->setJustification();
