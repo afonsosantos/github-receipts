@@ -85,15 +85,15 @@ function printIssue(Printer $printer, array $data): void
     printTitle($printer, $title);
     printBody($printer, $body);
 
-    // Footer timestamp
-    printFooter($printer, $createdAt);
-
     // Print QR code for the issue link
     if ($issueUrl !== '') {
-        $printer->feed(1);
-        $printer->qrCode($issueUrl, Printer::QR_ECLEVEL_L, 4);
+        $printer->feed();
+        $printer->qrCode($issueUrl, Printer::QR_ECLEVEL_L, 6);
         $printer->feed(2);
     }
+
+    // Footer timestamp
+    printFooter($printer, $createdAt);
 }
 
 /** Print pull request */
