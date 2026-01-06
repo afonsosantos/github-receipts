@@ -75,7 +75,7 @@ function printLogo(Printer $printer, string $logoPath = './logo.png'): void
     try {
         $logo = EscposImage::load($logoPath);
         $printer->setJustification(Printer::JUSTIFY_CENTER);
-        $printer->bitImage($logo);
+        $printer->graphics($logo);
         $printer->feed();
     } catch (Exception $e) {
         // ignore image errors
