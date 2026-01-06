@@ -8,7 +8,8 @@ use Mike42\Escpos\Printer;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 const PRINTER_DEVICE = '/dev/usb/lp0';
-const MAX_CHARS_PER_LINE = 48; // TM-T88V max chars per line
+const MAX_CHARS_NORMAL = 48;   // normal font, full width
+const MAX_CHARS_DOUBLE = 24;   // double-width text
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -34,9 +35,6 @@ $createdAt = $issue['created_at'] ?? '';
 $user = $issue['user']['login'] ?? 'unknown';
 $repoName = $repo['full_name'] ?? 'unknown';
 
-$connector = null;
-$printer = null;
-
 try {
     $connector = new FilePrintConnector(PRINTER_DEVICE);
     $printer = new Printer($connector);
@@ -60,55 +58,57 @@ try {
 }
 
 /**
- * Prints the receipt header.
+ * Prints the header with double-width "New Issue" and normal text for repo/user
  */
 function printHeader(Printer $printer, string $user, string $repo): void
 {
+    // Big centered header
     $printer->setJustification(Printer::JUSTIFY_CENTER);
-    $printer->setTextSize(2, 2);
-    $printer->setUnderline();
-    $printer->setEmphasis();
-    $printer->text("New Issue\n");
+    $printer->setTextSize(2, 2); // double width/height
+    $printer->setEmphasis(true);
+    $printer->text(wordwrap("New Issue", MAX_CHARS_DOUBLE) . "\n");
     $printer->feed(2);
 
-    $printer->setJustification();
+    // Repo / User normal text
+    $printer->setJustification(Printer::JUSTIFY_LEFT);
     $printer->setTextSize(1, 1);
-    $printer->setUnderline();
     $printer->setEmphasis(false);
-    $printer->text("Repo: $repo\n");
-    $printer->text("User: @$user\n");
+    $printer->text(wordwrap("Repo: $repo", MAX_CHARS_NORMAL) . "\n");
+    $printer->text(wordwrap("User: @$user", MAX_CHARS_NORMAL) . "\n");
     $printer->feed(2);
 }
 
 /**
- * Prints the issue title.
+ * Prints the issue title in double width
  */
 function printTitle(Printer $printer, string $title): void
 {
-    $printer->setEmphasis();
-    $printer->text($title . "\n");
+    $printer->setEmphasis(true);
+    $printer->setTextSize(2, 2); // double width/height
+    $printer->text(wordwrap($title, MAX_CHARS_DOUBLE) . "\n");
+    $printer->setTextSize(1, 1); // back to normal
     $printer->setEmphasis(false);
     $printer->feed(2);
 }
 
 /**
- * Prints the issue body.
+ * Prints the body in normal font
  */
 function printBody(Printer $printer, string $body): void
 {
     if ($body !== '') {
-        $printer->text(wordwrap($body, MAX_CHARS_PER_LINE) . "\n");
+        $printer->text(wordwrap($body, MAX_CHARS_NORMAL) . "\n");
         $printer->feed(2);
     }
 }
 
 /**
- * Prints the footer and cuts the paper.
+ * Prints footer and cuts
  */
 function printFooter(Printer $printer, string $timestamp): void
 {
     if ($timestamp !== '') {
-        $printer->text($timestamp . "\n");
+        $printer->text(wordwrap($timestamp, MAX_CHARS_NORMAL) . "\n");
         $printer->feed(2);
     }
     $printer->cut(Printer::CUT_PARTIAL);
