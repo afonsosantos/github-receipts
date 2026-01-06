@@ -79,15 +79,21 @@ function printIssue(Printer $printer, array $data): void
     $user = $issue['user']['login'] ?? 'unknown';
     $repoName = $repo['full_name'] ?? 'unknown';
     $issueUrl = $issue['html_url'] ?? '';
+    $labels = $issue['labels'] ?? [];
 
-    // Header, title, body
+    // Header
     printHeader($printer, "New Issue", $user, $repoName);
+
+    // Labels as pills
+    printLabels($printer, $labels);
+
+    // Title and body
     printTitle($printer, $title);
     printBody($printer, $body);
 
-    // Print QR code for the issue link
+    // QR code for the issue link
     if ($issueUrl !== '') {
-        $printer->feed();
+        $printer->feed(1);
         $printer->qrCode($issueUrl, Printer::QR_ECLEVEL_L, 6);
         $printer->feed(2);
     }
@@ -129,9 +135,8 @@ function printLabels(Printer $printer, array $labels): void
         $pillText .= '[' . ($label['name'] ?? '') . '] ';
     }
 
-    $printer->setJustification(Printer::JUSTIFY_LEFT);
-    $printer->setEmphasis(true);
-    // wrap text if too long
+    $printer->setJustification();
+    $printer->setEmphasis();
     $printer->text(wordwrap(trim($pillText), MAX_CHARS_PER_LINE) . "\n");
     $printer->setEmphasis(false);
     $printer->feed(1);
@@ -151,7 +156,7 @@ function printWorkflowRunFailure(Printer $printer, array $data): void
 
     printHeader($printer, "Workflow Failed", '', $repoName);
 
-    $printer->setJustification(Printer::JUSTIFY_LEFT);
+    $printer->setJustification();
     $printer->setTextSize(1, 1);
     $printer->setEmphasis(false);
     $printer->text("Workflow: $name\n");
@@ -172,7 +177,7 @@ function printHeader(Printer $printer, string $title, string $user, string $repo
     $printer->feed(2);
 
     if ($repo !== '' || $user !== '') {
-        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $printer->setJustification();
         $printer->setTextSize(1, 1);
         $printer->setEmphasis(false);
         if ($repo !== '') $printer->text(wordwrap("Repo: $repo", MAX_CHARS_PER_LINE) . "\n");
