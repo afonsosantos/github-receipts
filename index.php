@@ -8,7 +8,7 @@ use Mike42\Escpos\Printer;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 const PRINTER_DEVICE = '/dev/usb/lp0';
-const MAX_CHARS_PER_LINE = 48;
+const MAX_CHARS_PER_LINE = 48; // fits 58mm paper
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -16,9 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// GitHub sends event type in the header: X-GitHub-Event
 $githubEvent = $_SERVER['HTTP_X_GITHUB_EVENT'] ?? '';
-
 $rawInput = file_get_contents('php://input');
 $data = json_decode($rawInput, true);
 
@@ -27,9 +25,6 @@ if (!is_array($data)) {
     echo 'Error: Invalid JSON payload';
     exit;
 }
-
-$connector = null;
-$printer = null;
 
 try {
     $connector = new FilePrintConnector(PRINTER_DEVICE);
@@ -47,14 +42,12 @@ try {
             break;
 
         case 'workflow_run':
-            // Only print failed runs
             if (($data['workflow_run']['conclusion'] ?? '') === 'failure') {
                 printWorkflowRunFailure($printer, $data);
             }
             break;
 
         default:
-            // Unknown event
             $printer->setJustification(Printer::JUSTIFY_CENTER);
             $printer->text("Unknown GitHub Event: $githubEvent\n");
             $printer->feed(2);
@@ -72,9 +65,7 @@ try {
     }
 }
 
-/**
- * Print an issue event
- */
+/** Print issue */
 function printIssue(Printer $printer, array $data): void
 {
     $issue = $data['issue'] ?? [];
@@ -92,9 +83,7 @@ function printIssue(Printer $printer, array $data): void
     printFooter($printer, $createdAt);
 }
 
-/**
- * Print a pull request event
- */
+/** Print PR */
 function printPullRequest(Printer $printer, array $data): void
 {
     $pr = $data['pull_request'] ?? [];
@@ -108,21 +97,12 @@ function printPullRequest(Printer $printer, array $data): void
     $action = $data['action'] ?? 'opened';
 
     printHeader($printer, "Pull Request [$action]", $user, $repoName);
-
-    // Single line: Repo / User
-    printLineColumns($printer, [
-        "Repo: $repoName",
-        "User: @$user"
-    ]);
-
     printTitle($printer, $title);
     printBody($printer, $body);
     printFooter($printer, $createdAt);
 }
 
-/**
- * Print a failed workflow run
- */
+/** Print failed workflow run */
 function printWorkflowRunFailure(Printer $printer, array $data): void
 {
     $workflow = $data['workflow_run'] ?? [];
@@ -134,22 +114,20 @@ function printWorkflowRunFailure(Printer $printer, array $data): void
     $timestamp = $workflow['updated_at'] ?? '';
     $repoName = $repo['full_name'] ?? 'unknown';
 
-    printHeader($printer, "Workflow Failed", "", $repoName);
+    printHeader($printer, "Workflow Failed", '', $repoName);
 
-    // Single line columns: Workflow / Run ID / Status
-    printLineColumns($printer, [
-        "Workflow: $name",
-        "Run ID: $runId",
-        "Status: $conclusion"
-    ]);
-
+    $printer->setJustification(Printer::JUSTIFY_LEFT);
+    $printer->setTextSize(1, 1);
+    $printer->setEmphasis(false);
+    $printer->text("Workflow: $name\n");
+    $printer->text("Run ID: $runId\n");
+    $printer->text("Status: $conclusion\n");
     $printer->feed(2);
+
     printFooter($printer, $timestamp);
 }
 
-/**
- * Prints the receipt header.
- */
+/** Header with title + repo/user */
 function printHeader(Printer $printer, string $title, string $user, string $repo): void
 {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -168,9 +146,7 @@ function printHeader(Printer $printer, string $title, string $user, string $repo
     }
 }
 
-/**
- * Prints the title.
- */
+/** Title / body / footer */
 function printTitle(Printer $printer, string $title): void
 {
     if ($title !== '') {
@@ -181,9 +157,6 @@ function printTitle(Printer $printer, string $title): void
     }
 }
 
-/**
- * Prints the body.
- */
 function printBody(Printer $printer, string $body): void
 {
     if ($body !== '') {
@@ -192,9 +165,6 @@ function printBody(Printer $printer, string $body): void
     }
 }
 
-/**
- * Prints the footer and cuts the paper.
- */
 function printFooter(Printer $printer, string $timestamp): void
 {
     if ($timestamp !== '') {
@@ -202,25 +172,4 @@ function printFooter(Printer $printer, string $timestamp): void
         $printer->feed(2);
     }
     $printer->cut(Printer::CUT_PARTIAL);
-}
-
-/**
- * Helper: prints multiple columns on a single line
- * Columns are right-padded to fit MAX_CHARS_PER_LINE
- */
-function printLineColumns(Printer $printer, array $columns): void
-{
-    $numCols = count($columns);
-    $widthPerCol = intval(MAX_CHARS_PER_LINE / $numCols);
-
-    $line = '';
-    foreach ($columns as $col) {
-        $col = trim($col);
-        if (strlen($col) > $widthPerCol) {
-            $col = substr($col, 0, $widthPerCol - 1) . "…";
-        }
-        $line .= str_pad($col, $widthPerCol);
-    }
-    $printer->text($line . "\n");
-    $printer->feed(1);
 }
