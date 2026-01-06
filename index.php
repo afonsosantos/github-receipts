@@ -8,7 +8,6 @@ use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 use Mike42\Escpos\Printer;
 
 const PRINTER_DEVICE = '/dev/usb/lp0';
-const BODY_LINE_WIDTH = 57;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -40,8 +39,6 @@ $printer = null;
 try {
     $connector = new FilePrintConnector(PRINTER_DEVICE);
     $printer = new Printer($connector);
-
-    $printer->setPrintWidth(57);
 
     printHeader($printer, $user, $repoName);
     printTitle($printer, $title);
@@ -97,7 +94,7 @@ function printTitle(Printer $printer, string $title): void
 function printBody(Printer $printer, string $body): void
 {
     if ($body !== '') {
-        $printer->text(wordwrap($body, BODY_LINE_WIDTH) . "\n");
+        $printer->text($body . "\n");
         $printer->feed(2);
     }
 }
