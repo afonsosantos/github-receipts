@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-use Mike42\Escpos\CapabilityProfile;
-use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 use Mike42\Escpos\Printer;
+use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 const PRINTER_DEVICE = '/dev/usb/lp0';
+const MAX_CHARS_PER_LINE = 48; // TM-T88V max chars per line
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -39,8 +39,9 @@ $printer = null;
 
 try {
     $connector = new FilePrintConnector(PRINTER_DEVICE);
-    $profile = CapabilityProfile::load("TM-T88V");
-    $printer = new Printer($connector, $profile);
+    $printer = new Printer($connector);
+
+    $printer->initialize();
 
     printHeader($printer, $user, $repoName);
     printTitle($printer, $title);
@@ -96,7 +97,7 @@ function printTitle(Printer $printer, string $title): void
 function printBody(Printer $printer, string $body): void
 {
     if ($body !== '') {
-        $printer->text($body . "\n");
+        $printer->text(wordwrap($body, MAX_CHARS_PER_LINE) . "\n");
         $printer->feed(2);
     }
 }
@@ -110,5 +111,5 @@ function printFooter(Printer $printer, string $timestamp): void
         $printer->text($timestamp . "\n");
         $printer->feed(2);
     }
-    $printer->cut();
+    $printer->cut(Printer::CUT_PARTIAL);
 }
