@@ -76,11 +76,54 @@ function printIssue(Printer $printer, array $data): void
     $createdAt = $issue['created_at'] ?? '';
     $user = $issue['user']['login'] ?? 'unknown';
     $repoName = $repo['full_name'] ?? 'unknown';
+    $labels = $issue['labels'] ?? [];
 
     printHeader($printer, "New Issue", $user, $repoName);
+    printLabels($printer, $labels);
     printTitle($printer, $title);
     printBody($printer, $body);
     printFooter($printer, $createdAt);
+}
+
+/** Print pull request */
+function printPullRequest(Printer $printer, array $data): void
+{
+    $pr = $data['pull_request'] ?? [];
+    $repo = $data['repository'] ?? [];
+
+    $title = $pr['title'] ?? '(no title)';
+    $body = $pr['body'] ?? '';
+    $createdAt = $pr['created_at'] ?? '';
+    $user = $pr['user']['login'] ?? 'unknown';
+    $repoName = $repo['full_name'] ?? 'unknown';
+    $action = $data['action'] ?? 'opened';
+    $labels = $pr['labels'] ?? [];
+
+    printHeader($printer, "Pull Request [$action]", $user, $repoName);
+    printLabels($printer, $labels);
+    printTitle($printer, $title);
+    printBody($printer, $body);
+    printFooter($printer, $createdAt);
+}
+
+/** Print labels in pill style: [bug] [enhancement] */
+function printLabels(Printer $printer, array $labels): void
+{
+    if (empty($labels)) {
+        return;
+    }
+
+    $pillText = '';
+    foreach ($labels as $label) {
+        $pillText .= '[' . ($label['name'] ?? '') . '] ';
+    }
+
+    $printer->setJustification(Printer::JUSTIFY_LEFT);
+    $printer->setEmphasis(true);
+    // wrap text if too long
+    $printer->text(wordwrap(trim($pillText), MAX_CHARS_PER_LINE) . "\n");
+    $printer->setEmphasis(false);
+    $printer->feed(1);
 }
 
 /** Print failed workflow run */
