@@ -83,25 +83,6 @@ function printIssue(Printer $printer, array $data): void
     printFooter($printer, $createdAt);
 }
 
-/** Print PR */
-function printPullRequest(Printer $printer, array $data): void
-{
-    $pr = $data['pull_request'] ?? [];
-    $repo = $data['repository'] ?? [];
-
-    $title = $pr['title'] ?? '(no title)';
-    $body = $pr['body'] ?? '';
-    $createdAt = $pr['created_at'] ?? '';
-    $user = $pr['user']['login'] ?? 'unknown';
-    $repoName = $repo['full_name'] ?? 'unknown';
-    $action = $data['action'] ?? 'opened';
-
-    printHeader($printer, "Pull Request [$action]", $user, $repoName);
-    printTitle($printer, $title);
-    printBody($printer, $body);
-    printFooter($printer, $createdAt);
-}
-
 /** Print failed workflow run */
 function printWorkflowRunFailure(Printer $printer, array $data): void
 {
