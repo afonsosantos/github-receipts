@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
+use Mike42\Escpos\CapabilityProfile;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 use Mike42\Escpos\Printer;
 
@@ -38,7 +39,8 @@ $printer = null;
 
 try {
     $connector = new FilePrintConnector(PRINTER_DEVICE);
-    $printer = new Printer($connector);
+    $profile = CapabilityProfile::load("TM-T88V");
+    $printer = new Printer($connector, $profile);
 
     printHeader($printer, $user, $repoName);
     printTitle($printer, $title);
