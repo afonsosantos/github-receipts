@@ -97,9 +97,10 @@ function printIssue(Printer $printer, array $data): void
     $repoName = $repo['full_name'] ?? 'unknown';
     $issueUrl = $issue['html_url'] ?? '';
     $labels = $issue['labels'] ?? [];
+    $issueNumber = $issue['number'] ?? '';
 
     printLogo($printer);
-    printHeader($printer, "New Issue", $user, $repoName);
+    printHeader($printer, "New Issue", $user, $repoName, $issueNumber);
     printLabels($printer, $labels);
     printTitle($printer, $title);
     printBody($printer, $body);
@@ -128,9 +129,10 @@ function printPullRequest(Printer $printer, array $data): void
     $repoName = $repo['full_name'] ?? 'unknown';
     $action = $data['action'] ?? 'opened';
     $labels = $pr['labels'] ?? [];
+    $issueNumber = $issue['number'] ?? '';
 
     printLogo($printer);
-    printHeader($printer, "Pull Request [$action]", $user, $repoName);
+    printHeader($printer, "Pull Request [$action]", $user, $repoName, $issueNumber);
     printLabels($printer, $labels);
     printTitle($printer, $title);
     printBody($printer, $body);
@@ -167,9 +169,10 @@ function printWorkflowRunFailure(Printer $printer, array $data): void
     $conclusion = $workflow['conclusion'] ?? 'failure';
     $timestamp = $workflow['updated_at'] ?? '';
     $repoName = $repo['full_name'] ?? 'unknown';
+    $issueNumber = $issue['number'] ?? '';
 
     printLogo($printer);
-    printHeader($printer, "Workflow Failed", '', $repoName);
+    printHeader($printer, "Workflow Failed", '', $repoName, $issueNumber);
 
     $printer->setJustification();
     $printer->setTextSize(1, 1);
@@ -183,7 +186,7 @@ function printWorkflowRunFailure(Printer $printer, array $data): void
 }
 
 /** Header with title + repo/user */
-function printHeader(Printer $printer, string $title, string $user, string $repo): void
+function printHeader(Printer $printer, string $title, string $user, string $repo, string $issueId): void
 {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->setTextSize(2, 2);
@@ -195,6 +198,7 @@ function printHeader(Printer $printer, string $title, string $user, string $repo
         $printer->setJustification();
         $printer->setTextSize(1, 1);
         $printer->setEmphasis(false);
+        $printer->text("Issue: $issueId" . "\n");
         if ($repo !== '') $printer->text(wordwrap("Repo: $repo", MAX_CHARS_PER_LINE) . "\n");
         if ($user !== '') $printer->text(wordwrap("User: $user", MAX_CHARS_PER_LINE) . "\n");
         $printer->feed(2);
