@@ -46,12 +46,6 @@ try {
                 printWorkflowRunFailure($printer, $data);
             }
             break;
-
-        default:
-            $printer->setJustification(Printer::JUSTIFY_CENTER);
-            $printer->text("Unknown GitHub Event\n$githubEvent\n");
-            $printer->feed(2);
-            break;
     }
 
     http_response_code(200);
@@ -105,20 +99,30 @@ function printIssue(Printer $printer, array $data): void
 
 function printPullRequest(Printer $printer, array $data): void
 {
+    // Only react to PR creation
+    if (($data['action'] ?? '') !== 'opened') {
+        return;
+    }
+
     $pr   = $data['pull_request'] ?? [];
     $repo = $data['repository'] ?? [];
 
     $title       = $pr['title'] ?? '(no title)';
     $body        = $pr['body'] ?? '';
-    $createdAt  = $pr['created_at'] ?? '';
+    $createdAt   = $pr['created_at'] ?? '';
     $user        = $pr['user']['login'] ?? 'unknown';
     $repoName    = $repo['full_name'] ?? 'unknown';
-    $action      = $data['action'] ?? 'opened';
     $labels      = $pr['labels'] ?? [];
-    $issueNumber = (int)($pr['number'] ?? 0);
+    $prNumber    = (int)($pr['number'] ?? 0);
 
-    // printLogo($printer);
-    printHeader($printer, "Pull Request [$action]", $user, $repoName, $issueNumber);
+    printHeader(
+        $printer,
+        'New Pull Request',
+        $user,
+        $repoName,
+        $prNumber
+    );
+
     printLabels($printer, $labels);
     printTitle($printer, $title);
     printBody($printer, $body);
@@ -183,7 +187,7 @@ function printHeader(
     $printer->setJustification();
 
     if ($issueId > 0) {
-        $printer->text("Issue: #$issueId\n");
+        $printer->text("Item: #$issueId\n");
     }
     if ($repo !== '') {
         $printer->text("Repo: $repo\n");
