@@ -77,6 +77,10 @@ function printLogo(Printer $printer, string $logoPath = './logo.png'): void
 
 function printIssue(Printer $printer, array $data): void
 {
+    if (($data['action'] ?? '') !== 'opened') {
+        return;
+    }
+
     $issue = $data['issue'] ?? [];
     $repo  = $data['repository'] ?? [];
 
