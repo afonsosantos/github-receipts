@@ -9,7 +9,7 @@ use Mike42\Escpos\Printer;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 const PRINTER_DEVICE = '/dev/usb/lp0';
-const MAX_CHARS_PER_LINE = 48; // fits 58mm paper
+const MAX_CHARS_PER_LINE = 64;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
