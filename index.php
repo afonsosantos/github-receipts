@@ -186,7 +186,7 @@ function printWorkflowRunFailure(Printer $printer, array $data): void
 }
 
 /** Header with title + repo/user */
-function printHeader(Printer $printer, string $title, string $user, string $repo, string $issueId): void
+function printHeader(Printer $printer, string $title, string $user, string $repo, int $issueId): void
 {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->setTextSize(2, 2);
