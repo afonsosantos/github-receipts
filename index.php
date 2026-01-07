@@ -91,12 +91,12 @@ function printIssue(Printer $printer, array $data): void
     $createdAt  = $issue['created_at'] ?? '';
     $user        = $issue['user']['login'] ?? 'unknown';
     $repoName    = $repo['full_name'] ?? 'unknown';
-    $issueUrl    = $issue['html_url'] ?? '';
     $labels      = $issue['labels'] ?? [];
     $issueNumber = (int)($issue['number'] ?? 0);
+    $assignee    = $issue['assignee']['login'] ?? '';
 
-    printLogo($printer);
-    printHeader($printer, 'New Issue', $user, $repoName, $issueNumber);
+    // printLogo($printer);
+    printHeader($printer, 'New Issue', $user, $repoName, $issueNumber, $assignee);
     printLabels($printer, $labels);
     printTitle($printer, $title);
     printBody($printer, $body);
@@ -117,7 +117,7 @@ function printPullRequest(Printer $printer, array $data): void
     $labels      = $pr['labels'] ?? [];
     $issueNumber = (int)($pr['number'] ?? 0);
 
-    printLogo($printer);
+    // printLogo($printer);
     printHeader($printer, "Pull Request [$action]", $user, $repoName, $issueNumber);
     printLabels($printer, $labels);
     printTitle($printer, $title);
@@ -153,7 +153,7 @@ function printWorkflowRunFailure(Printer $printer, array $data): void
     $timestamp = $workflow['updated_at'] ?? '';
     $repoName  = $repo['full_name'] ?? 'unknown';
 
-    printLogo($printer);
+    // printLogo($printer);
     printHeader($printer, 'Workflow Failed', '', $repoName, 0);
 
     $printer->text("Workflow: $name\n");
@@ -169,7 +169,8 @@ function printHeader(
     string $title,
     string $user,
     string $repo,
-    int $issueId
+    int $issueId,
+    string $assignee = ''
 ): void {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->setTextSize(2, 2);
@@ -188,7 +189,10 @@ function printHeader(
         $printer->text("Repo: $repo\n");
     }
     if ($user !== '') {
-        $printer->text("User: @$user\n");
+        $printer->text("Created by: @$user\n");
+    }
+    if ($assignee !== '') {
+        $printer->text("Assigned to: @$assignee\n");
     }
 
     $printer->feed(2);
