@@ -9,7 +9,6 @@ use Mike42\Escpos\Printer;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
 
 const PRINTER_DEVICE = '/dev/usb/lp0';
-const MAX_CHARS_PER_LINE = 64;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -50,7 +49,7 @@ try {
 
         default:
             $printer->setJustification(Printer::JUSTIFY_CENTER);
-            $printer->text("Unknown GitHub Event: $githubEvent\n");
+            $printer->text("Unknown GitHub Event\n$githubEvent\n");
             $printer->feed(2);
             break;
     }
@@ -77,59 +76,54 @@ function printLogo(Printer $printer, string $logoPath = './logo.png'): void
         $printer->setJustification(Printer::JUSTIFY_CENTER);
         $printer->graphics($logo);
         $printer->feed(2);
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         // ignore image errors
     }
 }
 
-/** Print issue
- * @throws Exception
- */
 function printIssue(Printer $printer, array $data): void
 {
     $issue = $data['issue'] ?? [];
-    $repo = $data['repository'] ?? [];
+    $repo  = $data['repository'] ?? [];
 
-    $title = $issue['title'] ?? '(no title)';
-    $body = $issue['body'] ?? '';
-    $createdAt = $issue['created_at'] ?? '';
-    $user = $issue['user']['login'] ?? 'unknown';
-    $repoName = $repo['full_name'] ?? 'unknown';
-    $issueUrl = $issue['html_url'] ?? '';
-    $labels = $issue['labels'] ?? [];
-    $issueNumber = $issue['number'] ?? '';
+    $title       = $issue['title'] ?? '(no title)';
+    $body        = $issue['body'] ?? '';
+    $createdAt  = $issue['created_at'] ?? '';
+    $user        = $issue['user']['login'] ?? 'unknown';
+    $repoName    = $repo['full_name'] ?? 'unknown';
+    $issueUrl    = $issue['html_url'] ?? '';
+    $labels      = $issue['labels'] ?? [];
+    $issueNumber = (int)($issue['number'] ?? 0);
 
     printLogo($printer);
-    printHeader($printer, "New Issue", $user, $repoName, $issueNumber);
+    printHeader($printer, 'New Issue', $user, $repoName, $issueNumber);
     printLabels($printer, $labels);
     printTitle($printer, $title);
     printBody($printer, $body);
 
-    // QR code for the issue link
     if ($issueUrl !== '') {
         $printer->feed(1);
-        $printer->qrCode($issueUrl, Printer::QR_ECLEVEL_L, 6);
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->qrCode($issueUrl, Printer::QR_ECLEVEL_L, 5);
         $printer->feed(2);
     }
 
-    // Footer timestamp
     printFooter($printer, $createdAt);
 }
 
-/** Print pull request */
 function printPullRequest(Printer $printer, array $data): void
 {
-    $pr = $data['pull_request'] ?? [];
+    $pr   = $data['pull_request'] ?? [];
     $repo = $data['repository'] ?? [];
 
-    $title = $pr['title'] ?? '(no title)';
-    $body = $pr['body'] ?? '';
-    $createdAt = $pr['created_at'] ?? '';
-    $user = $pr['user']['login'] ?? 'unknown';
-    $repoName = $repo['full_name'] ?? 'unknown';
-    $action = $data['action'] ?? 'opened';
-    $labels = $pr['labels'] ?? [];
-    $issueNumber = $issue['number'] ?? '';
+    $title       = $pr['title'] ?? '(no title)';
+    $body        = $pr['body'] ?? '';
+    $createdAt  = $pr['created_at'] ?? '';
+    $user        = $pr['user']['login'] ?? 'unknown';
+    $repoName    = $repo['full_name'] ?? 'unknown';
+    $action      = $data['action'] ?? 'opened';
+    $labels      = $pr['labels'] ?? [];
+    $issueNumber = (int)($pr['number'] ?? 0);
 
     printLogo($printer);
     printHeader($printer, "Pull Request [$action]", $user, $repoName, $issueNumber);
@@ -139,78 +133,80 @@ function printPullRequest(Printer $printer, array $data): void
     printFooter($printer, $createdAt);
 }
 
-/** Print labels in pill style: [bug] [enhancement] */
 function printLabels(Printer $printer, array $labels): void
 {
     if (empty($labels)) {
         return;
     }
 
-    $pillText = '';
+    $printer->setEmphasis(true);
     foreach ($labels as $label) {
-        $pillText .= '[' . ($label['name'] ?? '') . '] ';
+        $name = $label['name'] ?? '';
+        if ($name !== '') {
+            $printer->text("[$name] ");
+        }
     }
-
-    $printer->setJustification();
-    $printer->setEmphasis();
-    $printer->text(wordwrap(trim($pillText), MAX_CHARS_PER_LINE) . "\n");
+    $printer->text("\n");
     $printer->setEmphasis(false);
     $printer->feed(1);
 }
 
-/** Print failed workflow run */
 function printWorkflowRunFailure(Printer $printer, array $data): void
 {
     $workflow = $data['workflow_run'] ?? [];
-    $repo = $data['repository'] ?? [];
+    $repo     = $data['repository'] ?? [];
 
-    $name = $workflow['name'] ?? '(unknown workflow)';
-    $runId = $workflow['id'] ?? '';
-    $conclusion = $workflow['conclusion'] ?? 'failure';
+    $name      = $workflow['name'] ?? '(unknown workflow)';
+    $runId     = $workflow['id'] ?? '';
     $timestamp = $workflow['updated_at'] ?? '';
-    $repoName = $repo['full_name'] ?? 'unknown';
-    $issueNumber = $issue['number'] ?? '';
+    $repoName  = $repo['full_name'] ?? 'unknown';
 
     printLogo($printer);
-    printHeader($printer, "Workflow Failed", '', $repoName, $issueNumber);
+    printHeader($printer, 'Workflow Failed', '', $repoName, 0);
 
-    $printer->setJustification();
-    $printer->setTextSize(1, 1);
-    $printer->setEmphasis(false);
     $printer->text("Workflow: $name\n");
     $printer->text("Run ID: $runId\n");
-    $printer->text("Status: $conclusion\n");
+    $printer->text("Status: FAILURE\n");
     $printer->feed(2);
 
     printFooter($printer, $timestamp);
 }
 
-/** Header with title + repo/user */
-function printHeader(Printer $printer, string $title, string $user, string $repo, int $issueId): void
-{
+function printHeader(
+    Printer $printer,
+    string $title,
+    string $user,
+    string $repo,
+    int $issueId
+): void {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->setTextSize(2, 2);
     $printer->setEmphasis(true);
-    $printer->text(wordwrap($title, MAX_CHARS_PER_LINE) . "\n");
+    $printer->text("$title\n");
     $printer->feed(2);
 
-    if ($repo !== '' || $user !== '') {
-        $printer->setJustification();
-        $printer->setTextSize(1, 1);
-        $printer->setEmphasis(false);
-        $printer->text("Issue: $issueId" . "\n");
-        if ($repo !== '') $printer->text(wordwrap("Repo: $repo", MAX_CHARS_PER_LINE) . "\n");
-        if ($user !== '') $printer->text(wordwrap("User: $user", MAX_CHARS_PER_LINE) . "\n");
-        $printer->feed(2);
+    $printer->setTextSize(1, 1);
+    $printer->setEmphasis(false);
+    $printer->setJustification();
+
+    if ($issueId > 0) {
+        $printer->text("Issue: #$issueId\n");
     }
+    if ($repo !== '') {
+        $printer->text("Repo: $repo\n");
+    }
+    if ($user !== '') {
+        $printer->text("User: @$user\n");
+    }
+
+    $printer->feed(2);
 }
 
-/** Title / body / footer */
 function printTitle(Printer $printer, string $title): void
 {
     if ($title !== '') {
         $printer->setEmphasis(true);
-        $printer->text(wordwrap($title, MAX_CHARS_PER_LINE) . "\n");
+        $printer->text("$title\n");
         $printer->setEmphasis(false);
         $printer->feed(2);
     }
@@ -219,7 +215,7 @@ function printTitle(Printer $printer, string $title): void
 function printBody(Printer $printer, string $body): void
 {
     if ($body !== '') {
-        $printer->text(wordwrap($body, MAX_CHARS_PER_LINE) . "\n");
+        $printer->text("$body\n");
         $printer->feed(2);
     }
 }
@@ -227,7 +223,7 @@ function printBody(Printer $printer, string $body): void
 function printFooter(Printer $printer, string $timestamp): void
 {
     if ($timestamp !== '') {
-        $printer->text(wordwrap($timestamp, MAX_CHARS_PER_LINE) . "\n");
+        $printer->text("$timestamp\n");
         $printer->feed(2);
     }
     $printer->cut(Printer::CUT_PARTIAL);
