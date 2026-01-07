@@ -100,14 +100,6 @@ function printIssue(Printer $printer, array $data): void
     printLabels($printer, $labels);
     printTitle($printer, $title);
     printBody($printer, $body);
-
-    if ($issueUrl !== '') {
-        $printer->feed(1);
-        $printer->setJustification(Printer::JUSTIFY_CENTER);
-        $printer->qrCode($issueUrl, Printer::QR_ECLEVEL_L, 5);
-        $printer->feed(2);
-    }
-
     printFooter($printer, $createdAt);
 }
 
